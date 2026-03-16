@@ -1,11 +1,26 @@
 VERSION 5.00
+Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} ManageRulesForm 
+   Caption         =   "UserForm1"
+   ClientHeight    =   4770
+   ClientLeft      =   120
+   ClientTop       =   465
+   ClientWidth     =   3900
+   OleObjectBlob   =   "ManageRulesForm.frx":0000
+   StartUpPosition =   1  'CenterOwner
+End
+Attribute VB_Name = "ManageRulesForm"
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = False
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Version 5#
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} ManageRulesForm
-   Caption         =   "Manage Rules"
-   ClientHeight    =   9702
-   ClientLeft      =   36
-   ClientTop       =   384
-   ClientWidth     =   6000
-   StartUpPosition =   3  'Windows Default
+   Caption = "Manage Rules"
+   ClientHeight = 9702
+   ClientLeft = 36
+   ClientTop = 384
+   ClientWidth = 6000
+   StartUpPosition = 3    'Windows Default
 End
 Attribute VB_Name = "ManageRulesForm"
 Attribute VB_GlobalNameSpace = False
@@ -338,3 +353,5 @@ Private Sub ClearInputs()
         Me.Controls("txtP" & i).Text = ""
     Next i
 End Sub
+
+
