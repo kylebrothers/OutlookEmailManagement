@@ -71,12 +71,15 @@ tool entirely self-contained within the Outlook profile.
 
 Two storage items are used, both located in the Inbox folder:
 
-| Storage Subject | Contents |
-|----------------|----------|
-| `FolderHistory` | CSV-like record of email subject → folder mappings, used to suggest filing destinations for recurring conversations |
-| `RulesStorage` | CSV-like record of rules definitions |
+| Storage Subject | Record Separator | Field Separator | Contents |
+|----------------|-----------------|-----------------|----------|
+| `FolderHistory` | `::` | `:` | Email subject → folder mappings for filing suggestions |
+| `RulesStorage` | `::` | `\|` | Rules definitions |
 
-Both use `::` as a record separator and `:` as a field separator within records.
+The two storage items use different field separators intentionally. `FolderHistory`
+uses `:` for historical reasons and its fields never contain colons. `RulesStorage`
+uses `|` to avoid ambiguity when fields are empty, since rules have five parameters
+and trailing empty fields would otherwise conflict with the `::` record separator.
 
 ---
 
@@ -123,9 +126,9 @@ implemented, but the storage format and dispatch architecture anticipate future
 rule types with different parameters and logic.
 
 ### Storage Format
-Each rule is stored as a single colon-delimited record:
+Each rule is stored as a single pipe-delimited record:
 ```
-RuleType:P1:P2:P3:P4:P5
+RuleType|P1|P2|P3|P4|P5
 ```
 
 - `RuleType` — identifies the rule logic to apply
@@ -209,6 +212,13 @@ Each rule type defines its own label captions for P1–P5 via the
 as "P3", "P4", "P5" to signal they are reserved rather than relevant. This
 avoids hardcoded UI text and keeps the interface self-documenting.
 
+### Why Different Field Separators for FolderHistory and RulesStorage
+`FolderHistory` uses `:` as its field separator for historical reasons and works
+correctly because its two fields (subject and folder name) never contain colons.
+`RulesStorage` uses `|` because rules have five parameters, and trailing empty
+fields would cause the `:` field separator to conflict with the `::` record
+separator, producing malformed records on parse.
+
 ---
 
 ## Development Workflow
@@ -224,8 +234,14 @@ workflow is:
 ### Applying Updates
 To apply changes from GitHub to Outlook:
 
-1. In the VBA editor, remove the existing module (right-click > Remove)
-2. Import the updated file via **File > Import File**
+1. For regular modules (`.bas`, `.frm`): remove the existing module and
+   reimport via **File > Import File**
+2. For `ThisOutlookSession.cls`: cannot be removed — open it in the editor,
+   select all code, delete, and paste the new code directly. Do not include
+   the file header or `Attribute` lines
+3. For `ManageRulesForm.frm`: if controls have already been built in the
+   designer, do not remove and reimport — paste code directly into the code
+   window, excluding the file header block
 
 ### Adding a New Rule Type
 1. Add the new rule type string to `cboRuleType` in `InitializeData` in
@@ -241,9 +257,12 @@ To apply changes from GitHub to Outlook:
 
 ## Known Limitations and Future Considerations
 
-- The `::` and `:` separator scheme will break if any parameter value contains
-  a colon. Acceptable for email addresses and short strings but should be
-  revisited if free-text parameters are added.
+- The `|` field separator used in `RulesStorage` will break if any parameter
+  value contains a pipe character. This is unlikely for email addresses and
+  short strings but worth noting.
+- The `::` record separator used in both storage items will break if any field
+  value contains `::`. This is unlikely in practice but should be noted for
+  future free-text parameters.
 - The account name `kyle.brothers@louisville.edu` is hardcoded in multiple
   places. If the tool is adapted for a different account, all occurrences must
   be updated.
