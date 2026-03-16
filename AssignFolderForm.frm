@@ -460,6 +460,11 @@ Sub LoadStorageToColumn(ByVal StorageSubject As String)
     
 End Sub
 
+Private Sub btnManageRules_Click()
+    Unload Me
+    ManageRulesForm.Show
+End Sub
+
 Public Sub SetFormColor()
     Dim myNameSpace As Outlook.NameSpace
     Dim myFolder As Outlook.Folder
