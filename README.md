@@ -43,6 +43,19 @@ VSTO, no Office Add-in framework. All code lives in the Outlook VBA project and
 is accessible via the Developer tab. This keeps deployment simple: importing the
 module files into the VBA editor is all that is required.
 
+### Required References
+The following references must be enabled in the VBA editor under Tools >
+References:
+
+| Reference | Purpose |
+|-----------|---------|
+| Visual Basic for Applications | Core VBA language |
+| Microsoft Outlook 16.0 Object Library | Outlook object model |
+| Microsoft Office 16.0 Object Library | Shared Office types |
+| Microsoft Forms 2.0 Object Library | UserForm and control support |
+| OLE Automation | COM automation support |
+| Microsoft Scripting Runtime | `Scripting.Dictionary` used for subject-to-folder mapping in `AssignFolderForm` |
+
 ### Files
 | File | Type | Purpose |
 |------|------|---------|
@@ -111,7 +124,10 @@ rule types with different parameters and logic.
 
 ### Storage Format
 Each rule is stored as a single colon-delimited record:
+```
 RuleType:P1:P2:P3:P4:P5
+```
+
 - `RuleType` — identifies the rule logic to apply
 - `P1` through `P5` — five general-purpose parameters whose meaning is
   rule-type-specific
