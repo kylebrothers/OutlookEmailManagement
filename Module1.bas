@@ -47,6 +47,53 @@ Sub AssignFolder(ByVal StartingFolder As String)
     Project1.AssignFolderForm.txtSelect.SetFocus
     Project1.AssignFolderForm.Show
     Project1.ThisOutlookSession.Application_Startup
-    'Project1.ThisOutlookSession.HASSUpdates
 End Sub
 
+Public Function GetRulesStorage() As StorageItem
+    Dim Session As Outlook.NameSpace
+    Dim Folder As Outlook.Folder
+    Dim SubFolder As Outlook.Folder
+    
+    Set Session = Application.Session
+    For Each Folder In Session.Folders
+        If Folder.Name = "kyle.brothers@louisville.edu" Then
+            For Each SubFolder In Folder.Folders
+                If SubFolder.Name = "Inbox" Then
+                    Set GetRulesStorage = SubFolder.GetStorage("RulesStorage", olIdentifyBySubject)
+                    Exit Function
+                End If
+            Next
+        End If
+    Next
+End Function
+
+Public Function SenderHasRule(ByVal SenderAddress As String) As Boolean
+    Dim myStorage As StorageItem
+    Dim ParseString As String
+    Dim TargetArray As Variant
+    Dim SplitArray As Variant
+    Dim i As Long
+    
+    SenderHasRule = False
+    
+    Set myStorage = GetRulesStorage()
+    If myStorage Is Nothing Then Exit Function
+    
+    ParseString = myStorage.Body
+    If ParseString = "" Then Exit Function
+    
+    TargetArray = Split(ParseString, "::")
+    For i = LBound(TargetArray) To UBound(TargetArray)
+        If TargetArray(i) <> "" Then
+            SplitArray = Split(TargetArray(i), "|")
+            If UBound(SplitArray) >= 5 Then
+                If SplitArray(0) = "SENDERDELETE" Then
+                    If LCase(SplitArray(1)) = LCase(SenderAddress) Then
+                        SenderHasRule = True
+                        Exit Function
+                    End If
+                End If
+            End If
+        End If
+    Next i
+End Function
