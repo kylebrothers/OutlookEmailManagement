@@ -1,32 +1,4 @@
-VERSION 5.00
-Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} ManageRulesForm 
-   Caption         =   "UserForm1"
-   ClientHeight    =   4770
-   ClientLeft      =   120
-   ClientTop       =   465
-   ClientWidth     =   3900
-   OleObjectBlob   =   "ManageRulesForm.frx":0000
-   StartUpPosition =   1  'CenterOwner
-End
-Attribute VB_Name = "ManageRulesForm"
-Attribute VB_GlobalNameSpace = False
-Attribute VB_Creatable = False
-Attribute VB_PredeclaredId = True
-Attribute VB_Exposed = False
-Version 5#
-Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} ManageRulesForm
-   Caption = "Manage Rules"
-   ClientHeight = 9702
-   ClientLeft = 36
-   ClientTop = 384
-   ClientWidth = 6000
-   StartUpPosition = 3    'Windows Default
-End
-Attribute VB_Name = "ManageRulesForm"
-Attribute VB_GlobalNameSpace = False
-Attribute VB_Creatable = False
-Attribute VB_PredeclaredId = True
-Attribute VB_Exposed = False
+Option Explicit
 
 ' =====================================================================
 ' INITIALIZE
@@ -215,17 +187,16 @@ Private Sub btnAdd_Click()
         Exit Sub
     End If
     
-    ' For SENDERDELETE, default P2 to 30 if left blank
     If Me.cboRuleType.Text = "SENDERDELETE" And Me.txtP2.Text = "" Then
         Me.txtP2.Text = "30"
     End If
     
     Dim NewRecord As String
-    NewRecord = Me.cboRuleType.Text & ":" & _
-                Me.txtP1.Text & ":" & _
-                Me.txtP2.Text & ":" & _
-                Me.txtP3.Text & ":" & _
-                Me.txtP4.Text & ":" & _
+    NewRecord = Me.cboRuleType.Text & "|" & _
+                Me.txtP1.Text & "|" & _
+                Me.txtP2.Text & "|" & _
+                Me.txtP3.Text & "|" & _
+                Me.txtP4.Text & "|" & _
                 Me.txtP5.Text
     
     Call SaveRule(NewRecord)
@@ -261,7 +232,7 @@ Private Sub btnDelete_Click()
     
     For i = LBound(TargetArray) To UBound(TargetArray)
         If TargetArray(i) <> "" Then
-            SplitArray = Split(TargetArray(i), ":")
+            SplitArray = Split(TargetArray(i), "|")
             If Not (SplitArray(0) = SelectedType And SplitArray(1) = SelectedP1) Then
                 If NewBody <> "" Then NewBody = NewBody & "::"
                 NewBody = NewBody & TargetArray(i)
@@ -314,33 +285,19 @@ Private Sub LoadRules()
     TargetArray = Split(ParseString, "::")
     For i = LBound(TargetArray) To UBound(TargetArray)
         If TargetArray(i) <> "" Then
-            SplitArray = Split(TargetArray(i), ":")
+            SplitArray = Split(TargetArray(i), "|")
             If UBound(SplitArray) >= 5 Then
                 Me.lbRules.AddItem
-                Me.lbRules.List(Me.lbRules.ListCount - 1, 0) = SplitArray(0) ' RuleType
-                Me.lbRules.List(Me.lbRules.ListCount - 1, 1) = SplitArray(1) ' P1
-                Me.lbRules.List(Me.lbRules.ListCount - 1, 2) = SplitArray(2) ' P2
+                Me.lbRules.List(Me.lbRules.ListCount - 1, 0) = SplitArray(0)
+                Me.lbRules.List(Me.lbRules.ListCount - 1, 1) = SplitArray(1)
+                Me.lbRules.List(Me.lbRules.ListCount - 1, 2) = SplitArray(2)
             End If
         End If
     Next i
 End Sub
 
 Private Function GetRulesStorage() As StorageItem
-    Dim Session As Outlook.NameSpace
-    Dim Folder As Outlook.Folder
-    Dim SubFolder As Outlook.Folder
-    
-    Set Session = Application.Session
-    For Each Folder In Session.Folders
-        If Folder.Name = "kyle.brothers@louisville.edu" Then
-            For Each SubFolder In Folder.Folders
-                If SubFolder.Name = "Inbox" Then
-                    Set GetRulesStorage = SubFolder.GetStorage("RulesStorage", olIdentifyBySubject)
-                    Exit Function
-                End If
-            Next
-        End If
-    Next
+    Set GetRulesStorage = Module1.GetRulesStorage()
 End Function
 
 ' =====================================================================
@@ -353,5 +310,4 @@ Private Sub ClearInputs()
         Me.Controls("txtP" & i).Text = ""
     Next i
 End Sub
-
 
