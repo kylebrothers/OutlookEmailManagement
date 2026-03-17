@@ -1,20 +1,4 @@
-VERSION 5.00
-Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} AssignFolderForm 
-   Caption         =   "Assign Folder"
-   ClientHeight    =   9702.001
-   ClientLeft      =   36
-   ClientTop       =   384
-   ClientWidth     =   4380
-   OleObjectBlob   =   "AssignFolderForm.frx":0000
-   StartUpPosition =   3  'Windows Default
-End
-Attribute VB_Name = "AssignFolderForm"
-Attribute VB_GlobalNameSpace = False
-Attribute VB_Creatable = False
-Attribute VB_PredeclaredId = True
-Attribute VB_Exposed = False
-
-
+Option Explicit
 
 Public Actions As Scripting.Dictionary
 
@@ -81,13 +65,16 @@ Private Sub UserForm_Initialize()
     txtSelect.SetFocus
 End Sub
 
+Private Sub UserForm_Activate()
+    Call SetManageRulesButtonColor
+End Sub
+
 Sub LoadSubFolders()
 On Error GoTo On_Error
     
     FoldersList.Clear
     
     Dim Session As Outlook.NameSpace
-    Dim Report As String
     Dim Folders As Outlook.Folders
     Dim Folder As Outlook.Folder
     Dim SubFolders As Outlook.Folders
@@ -97,10 +84,8 @@ On Error GoTo On_Error
     
     Set Session = Application.Session
     
-    
     Set Folders = Session.Folders
     For Each Folder In Folders
-
         If Folder.Name = "kyle.brothers@louisville.edu" Then
             Set SubFolders = Folder.Folders
             For Each SubFolder In SubFolders
@@ -121,9 +106,7 @@ On Error GoTo On_Error
             Next
         End If
     Next
-    
 
-    
 Exiting:
         Set Session = Nothing
         Exit Sub
@@ -168,7 +151,6 @@ Sub MatchSubjects()
 End Sub
 
 Sub SortListbox()
-    'Sorts ListBox List
     Dim i As Long
     Dim j As Long
     Dim temp As Variant
@@ -187,7 +169,6 @@ Sub SortListbox()
 End Sub
 
 Sub CleanLbActions()
-    'Sorts ListBox List and removes duplicates
     Dim i As Long
     Dim j As Long
     Dim temp0 As Variant
@@ -216,10 +197,10 @@ Sub CleanLbActions()
 End Sub
 
 Sub NumberRows()
-        Dim i As Long
-        For i = 0 To (FoldersList.ListCount - 1)
-            FoldersList.List(i, 0) = i
-        Next i
+    Dim i As Long
+    For i = 0 To (FoldersList.ListCount - 1)
+        FoldersList.List(i, 0) = i
+    Next i
 End Sub
 
 Sub MoveSelectedMessages(ByVal TargetFolder As String)
@@ -227,7 +208,6 @@ Sub MoveSelectedMessages(ByVal TargetFolder As String)
     Dim objItem As Outlook.MailItem
     
     Dim Session As Outlook.NameSpace
-    Dim Report As String
     Dim Folders As Outlook.Folders
     Dim Folder As Outlook.Folder
     Dim SubFolders As Outlook.Folders
@@ -240,7 +220,6 @@ Sub MoveSelectedMessages(ByVal TargetFolder As String)
     
     Set Folders = Session.Folders
     For Each Folder In Folders
-
         If Folder.Name = "kyle.brothers@louisville.edu" Then
             Set SubFolders = Folder.Folders
             For Each SubFolder In SubFolders
@@ -258,7 +237,6 @@ Sub MoveSelectedMessages(ByVal TargetFolder As String)
         End If
     Next
     
-  
     If Application.ActiveExplorer.Selection.Count = 0 Then
         MsgBox ("No item selected")
     Else
@@ -269,31 +247,24 @@ Sub MoveSelectedMessages(ByVal TargetFolder As String)
             
             objItem.UnRead = False
             objItem.TaskCompletedDate = Date
-            
             objItem.Move moveToFolder
         Next
         
-        'Call SaveColumnToStorage("FolderHistory")
+        Call ThisOutlookSession.RunRules
         
         Unload Me
-    
-       
         Exit Sub
     End If
 End Sub
 
 Sub SaveColumnToStorage(ByVal StorageSubject As String)
     Dim Session As Outlook.NameSpace
-    Dim Report As String
     Dim Folders As Outlook.Folders
     Dim Folder As Outlook.Folder
     Dim SubFolders As Outlook.Folders
     Dim SubFolder As Outlook.Folder
     Dim myStorage As StorageItem
-    Dim CurrentItem As String
     Dim TempBody As String
-    Dim i As Long
-    Dim j As Long
     Dim key As Variant
      
     If ThisOutlookSession.SaveColumns Then
@@ -302,7 +273,6 @@ Sub SaveColumnToStorage(ByVal StorageSubject As String)
         
         Set Folders = Session.Folders
         For Each Folder In Folders
-    
             If Folder.Name = "kyle.brothers@louisville.edu" Then
                 Set SubFolders = Folder.Folders
                 For Each SubFolder In SubFolders
@@ -326,7 +296,6 @@ Sub SaveColumnToStorage(ByVal StorageSubject As String)
         End If
             
         myStorage.Body = TempBody
-          
         myStorage.Save
     
     End If
@@ -335,16 +304,11 @@ End Sub
 
 Sub DeleteFolderHistory()
     Dim Session As Outlook.NameSpace
-    Dim Report As String
     Dim Folders As Outlook.Folders
     Dim Folder As Outlook.Folder
     Dim SubFolders As Outlook.Folders
     Dim SubFolder As Outlook.Folder
     Dim myStorage As StorageItem
-    Dim CurrentItem As String
-    Dim TempBody As String
-    Dim i As Long
-    Dim j As Long
     Dim StorageSubject As String
     
     StorageSubject = "FolderHistory"
@@ -353,7 +317,6 @@ Sub DeleteFolderHistory()
     
     Set Folders = Session.Folders
     For Each Folder In Folders
-
         If Folder.Name = "kyle.brothers@louisville.edu" Then
             Set SubFolders = Folder.Folders
             For Each SubFolder In SubFolders
@@ -377,16 +340,11 @@ End Sub
 
 Sub DisplayFolderHistory()
     Dim Session As Outlook.NameSpace
-    Dim Report As String
     Dim Folders As Outlook.Folders
     Dim Folder As Outlook.Folder
     Dim SubFolders As Outlook.Folders
     Dim SubFolder As Outlook.Folder
     Dim myStorage As StorageItem
-    Dim CurrentItem As String
-    Dim TempBody As String
-    Dim i As Long
-    Dim j As Long
     Dim StorageSubject As String
     
     StorageSubject = "FolderHistory"
@@ -395,7 +353,6 @@ Sub DisplayFolderHistory()
     
     Set Folders = Session.Folders
     For Each Folder In Folders
-
         If Folder.Name = "kyle.brothers@louisville.edu" Then
             Set SubFolders = Folder.Folders
             For Each SubFolder In SubFolders
@@ -414,17 +371,14 @@ End Sub
 
 Sub LoadStorageToColumn(ByVal StorageSubject As String)
     Dim Session As Outlook.NameSpace
-    Dim Report As String
     Dim Folders As Outlook.Folders
     Dim Folder As Outlook.Folder
     Dim SubFolders As Outlook.Folders
     Dim SubFolder As Outlook.Folder
     Dim myStorage As StorageItem
     Dim ParseString As String
-    Dim CurrentItem As String
     Dim TargetArray As Variant
     Dim SplitArray As Variant
-    
     Dim i As Long
     
     Set Session = Application.Session
@@ -433,7 +387,6 @@ Sub LoadStorageToColumn(ByVal StorageSubject As String)
     Set Actions = New Scripting.Dictionary
         
     For Each Folder In Folders
-
         If Folder.Name = "kyle.brothers@louisville.edu" Then
             Set SubFolders = Folder.Folders
             For Each SubFolder In SubFolders
@@ -457,12 +410,6 @@ Sub LoadStorageToColumn(ByVal StorageSubject As String)
         Next
     End If
     
-    
-End Sub
-
-Private Sub btnManageRules_Click()
-    Unload Me
-    ManageRulesForm.Show
 End Sub
 
 Public Sub SetFormColor()
@@ -483,12 +430,45 @@ Public Sub SetFormColor()
         End If
     Else
         If ThisOutlookSession.SaveColumns Then
-            AssignFolderForm.BackColor = RGB(208, 2248, 208)
+            AssignFolderForm.BackColor = RGB(208, 248, 208)
         Else
             AssignFolderForm.BackColor = RGB(144, 238, 144)
         End If
     End If
     
+End Sub
+
+Public Sub SetManageRulesButtonColor()
+    Dim objItem As Object
+    Dim SenderAddress As String
+    
+    On Error Resume Next
+    Set objItem = Application.ActiveExplorer.Selection.Item(1)
+    
+    If objItem Is Nothing Then
+        Me.btnManageRules.BackColor = &H8000000F
+        Exit Sub
+    End If
+    
+    If Not objItem.Class = olMail Then
+        Me.btnManageRules.BackColor = &H8000000F
+        Exit Sub
+    End If
+    
+    SenderAddress = objItem.SenderEmailAddress
+    
+    If Module1.SenderHasRule(SenderAddress) Then
+        Me.btnManageRules.BackColor = RGB(180, 0, 0)
+        Me.btnManageRules.ForeColor = RGB(255, 255, 255)
+    Else
+        Me.btnManageRules.BackColor = &H8000000F
+        Me.btnManageRules.ForeColor = &H80000012
+    End If
+End Sub
+
+Private Sub btnManageRules_Click()
+    Unload Me
+    ManageRulesForm.Show
 End Sub
 
 Function CleanSubject(ByVal OriginalSubject As String) As String
