@@ -1,19 +1,7 @@
-VERSION 1.0 CLASS
-BEGIN
-  MultiUse = -1  'True
-END
-Attribute VB_Name = "ThisOutlookSession"
-Attribute VB_GlobalNameSpace = False
-Attribute VB_Creatable = False
-Attribute VB_PredeclaredId = True
-Attribute VB_Exposed = True
 Option Explicit
 Private WithEvents oExpl As Explorer
-Attribute oExpl.VB_VarHelpID = -1
 Private WithEvents oApp As Application
-Attribute oApp.VB_VarHelpID = -1
 Public WithEvents oItem As MailItem
-Attribute oItem.VB_VarHelpID = -1
 Public SaveColumns As Boolean
 
 Public Sub Application_Startup()
@@ -103,7 +91,6 @@ Public Sub RunRules()
     Dim i As Long
     Dim ThresholdDays As Long
 
-    ' Broad pre-filter of 1 day; per-rule threshold checked inside loop
     FilterString = "[ReceivedTime] < '" & Format(Now - 1, "ddddd h:nn AMPM") & "'"
     
     Set myNameSpace = Application.GetNamespace("MAPI")
@@ -139,7 +126,7 @@ Public Sub RunRules()
         If myItem.Class = olMail Then
             For i = LBound(TargetArray) To UBound(TargetArray)
                 If TargetArray(i) <> "" Then
-                    SplitArray = Split(TargetArray(i), ":")
+                    SplitArray = Split(TargetArray(i), "|")
                     If UBound(SplitArray) >= 5 Then
                         If SplitArray(0) = "SENDERDELETE" Then
                             ThresholdDays = CLng(SplitArray(2))
