@@ -32,6 +32,11 @@ codebase, Claude should:
 - Prefer extending existing patterns (dispatchers, population subs, storage
   format) over introducing new architectural approaches unless discussed with
   the user
+- When suggesting code changes, always offer to produce complete updated versions
+  of affected files rather than partial snippets, to avoid integration errors
+- Be aware that ThisOutlookSession.cls and ManageRulesForm.frm cannot be removed
+  and reimported — code must be pasted directly into the VBA editor code window,
+  excluding all file header lines and Attribute lines (see Development Workflow)
 
 ---
 
@@ -60,7 +65,7 @@ References:
 | File | Type | Purpose |
 |------|------|---------|
 | `ThisOutlookSession.cls` | Class | Outlook application event handlers, startup logic, and the rules scan engine |
-| `Module1.bas` | Module | Public entry points — one sub per filing category, triggered via ALT+number keyboard shortcuts |
+| `Module1.bas` | Module | Public entry points — one sub per filing category, triggered via ALT+number keyboard shortcuts. Also contains shared utility functions `GetRulesStorage` and `SenderHasRule` |
 | `AssignFolderForm.frm/.frx` | Form | The primary email filing interface |
 | `ManageRulesForm.frm/.frx` | Form | The rules management interface |
 
@@ -116,6 +121,16 @@ A toggle (F3 key) that controls whether filing history is persisted to
 `FolderHistory` storage after each filing action. When off, the session's
 filing memory is in-memory only.
 
+### Manage Rules Button
+A "Manage Rules" button on `AssignFolderForm` opens the rules management
+interface and closes the filing form. The button is intended to turn red
+(`RGB(180, 0, 0)`) with white text when the selected email's sender already
+has a rule associated with it, and revert to system default gray when no rule
+exists. This feature was partially implemented but was not fully working at the
+end of the last session — it should be revisited in a fresh session. The
+relevant functions are `SetManageRulesButtonColor` in `AssignFolderForm` and
+`SenderHasRule` in `Module1`.
+
 ---
 
 ## Rules Engine
@@ -152,14 +167,14 @@ than P2 days is automatically deleted.
 
 ### Rule Execution
 The rules scan runs automatically each time an email is filed using the filing
-assistant. It uses Outlook's `Items.Restrict` method to pre-filter inbox items
-before evaluating rules, keeping execution efficient regardless of inbox size.
-The Restrict filter uses a broad 1-day cutoff as a pre-filter; the actual
-per-rule threshold (P2) is evaluated inside the loop, allowing different rules
-to have different thresholds.
+assistant via `MoveSelectedMessages` in `AssignFolderForm`. It uses Outlook's
+`Items.Restrict` method to pre-filter inbox items before evaluating rules,
+keeping execution efficient regardless of inbox size. The Restrict filter uses
+a broad 1-day cutoff as a pre-filter; the actual per-rule threshold (P2) is
+evaluated inside the loop, allowing different rules to have different thresholds.
 
 ### ManageRulesForm
-The rules management interface opens from a "Manage Rules" button on
+The rules management interface opens from the "Manage Rules" button on
 `AssignFolderForm`. Opening it closes the filing form. It provides:
 
 - A dropdown to select rule type (extensible as new types are added)
@@ -169,6 +184,21 @@ The rules management interface opens from a "Manage Rules" button on
   currently selected email in the inbox
 - A list of existing rules showing RuleType, P1, and P2
 - Add and Delete buttons
+
+---
+
+## Shared Utility Functions in Module1
+
+### GetRulesStorage
+A public function that returns the `StorageItem` for `RulesStorage`. Shared
+between `AssignFolderForm` and `ManageRulesForm` to avoid duplication.
+`ManageRulesForm` has a private `GetRulesStorage` wrapper that delegates to
+`Module1.GetRulesStorage`.
+
+### SenderHasRule
+A public function that takes a sender email address string and returns `True`
+if any `SENDERDELETE` rule exists for that address. Used by
+`SetManageRulesButtonColor` in `AssignFolderForm`.
 
 ---
 
@@ -234,14 +264,13 @@ workflow is:
 ### Applying Updates
 To apply changes from GitHub to Outlook:
 
-1. For regular modules (`.bas`, `.frm`): remove the existing module and
-   reimport via **File > Import File**
-2. For `ThisOutlookSession.cls`: cannot be removed — open it in the editor,
-   select all code, delete, and paste the new code directly. Do not include
-   the file header or `Attribute` lines
-3. For `ManageRulesForm.frm`: if controls have already been built in the
-   designer, do not remove and reimport — paste code directly into the code
-   window, excluding the file header block
+1. For `Module1.bas`: remove and reimport via **File > Import File**
+2. For `ThisOutlookSession.cls`: cannot be removed — open in the editor,
+   select all code, delete, and paste new code directly. Exclude all lines
+   from the file header block and any inline `Attribute` lines
+3. For `AssignFolderForm.frm` and `ManageRulesForm.frm`: if controls have
+   already been built in the designer, do not remove and reimport — paste
+   code directly into the code window, excluding the file header block
 
 ### Adding a New Rule Type
 1. Add the new rule type string to `cboRuleType` in `InitializeData` in
@@ -252,17 +281,19 @@ To apply changes from GitHub to Outlook:
    `PopulateForX` sub with pre-population logic
 4. Add a new `Case` to the `Select Case` block in `RunRules` in
    `ThisOutlookSession` with the action logic
+5. Update `SenderHasRule` in `Module1` if the new rule type also uses P1
+   as a sender address, or add a new parallel function for the new rule type
 
 ---
 
 ## Known Limitations and Future Considerations
 
 - The `|` field separator used in `RulesStorage` will break if any parameter
-  value contains a pipe character. This is unlikely for email addresses and
-  short strings but worth noting.
+  value contains a pipe character. Unlikely for email addresses and short
+  strings but worth noting.
 - The `::` record separator used in both storage items will break if any field
-  value contains `::`. This is unlikely in practice but should be noted for
-  future free-text parameters.
+  value contains `::`. Unlikely in practice but relevant for future free-text
+  parameters.
 - The account name `kyle.brothers@louisville.edu` is hardcoded in multiple
   places. If the tool is adapted for a different account, all occurrences must
   be updated.
@@ -272,3 +303,10 @@ To apply changes from GitHub to Outlook:
 - The Restrict pre-filter in `RunRules` uses a 1-day cutoff as a broad filter.
   If a rule type is added with a threshold of less than 1 day, this will need
   to be adjusted.
+- The `SetManageRulesButtonColor` feature was partially implemented but not
+  fully working at the end of the last development session. The intended
+  behavior is for `btnManageRules` on `AssignFolderForm` to turn red when the
+  selected email's sender already has a rule, and revert to system gray when
+  no rule exists. The challenge is finding the correct trigger point — calling
+  it from `Module1` before `Show` and from `UserForm_Activate` were both
+  attempted without success.
