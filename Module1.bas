@@ -1,4 +1,3 @@
-Attribute VB_Name = "Module1"
 Public CurrentFolder As String
 
 Sub Conference1()
