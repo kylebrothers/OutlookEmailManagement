@@ -1,10 +1,4 @@
-Option Explicit
-
 Public Actions As Scripting.Dictionary
-
-Private Sub FoldersList_Click()
-
-End Sub
 
 Private Sub lbActions_Click()
 
