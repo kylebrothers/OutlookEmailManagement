@@ -10,7 +10,8 @@ via the built-in Developer/VBA interface. It provides two core capabilities:
    of past filing decisions
 2. **Rules Engine** — a framework for defining rules that automatically act on
    inbox emails based on configurable criteria, currently supporting automatic
-   deletion of emails from specified senders after a configurable age threshold
+   deletion of emails from specified senders either after a configurable age
+   threshold or immediately on the next filing action
 
 The tool is designed for a power user who processes high volumes of email across
 a complex folder structure, and who wants automation that goes beyond what
@@ -65,7 +66,7 @@ References:
 | File | Type | Purpose |
 |------|------|---------|
 | `ThisOutlookSession.cls` | Class | Outlook application event handlers, startup logic, and the rules scan engine |
-| `Module1.bas` | Module | Public entry points — one sub per filing category, triggered via ALT+number keyboard shortcuts. Also contains shared utility functions `GetRulesStorage` and `SenderHasRule` |
+| `Module1.bas` | Module | Public entry points — one sub per filing category, triggered via ALT+number keyboard shortcuts. Also contains shared utility functions `GetRulesStorage`, `SenderHasRule`, and `MigrateOneDayRules` |
 | `AssignFolderForm.frm/.frx` | Form | The primary email filing interface |
 | `ManageRulesForm.frm/.frx` | Form | The rules management interface |
 
@@ -123,22 +124,28 @@ filing memory is in-memory only.
 
 ### Manage Rules Button
 A "Manage Rules" button on `AssignFolderForm` opens the rules management
-interface and closes the filing form. The button is intended to turn red
-(`RGB(180, 0, 0)`) with white text when the selected email's sender already
-has a rule associated with it, and revert to system default gray when no rule
-exists. This feature was partially implemented but was not fully working at the
-end of the last session — it should be revisited in a fresh session. The
-relevant functions are `SetManageRulesButtonColor` in `AssignFolderForm` and
-`SenderHasRule` in `Module1`.
+interface and closes the filing form. The button turns red (`RGB(180, 0, 0)`)
+with white text when the selected email's sender already has a rule associated
+with it (either SENDERDELETE or SENDERIMMEDIATE), and reverts to system default
+gray when no rule exists. This feature was partially implemented but was not
+fully working at the end of the last session — it should be revisited in a
+fresh session. The relevant functions are `SetManageRulesButtonColor` in
+`AssignFolderForm` and `SenderHasRule` in `Module1`.
 
 ---
 
 ## Rules Engine
 
 ### Design Philosophy
-The rules engine is designed to be extensible. Only one rule type is currently
+The rules engine is designed to be extensible. Only two rule types are currently
 implemented, but the storage format and dispatch architecture anticipate future
 rule types with different parameters and logic.
+
+### Flagged Email Exclusion
+Any inbox email with a flag set (`FlagStatus <> olNoFlag`) is automatically
+skipped by the rules engine regardless of which rule would otherwise apply.
+This allows the user to protect specific emails from automated action by
+flagging them.
 
 ### Storage Format
 Each rule is stored as a single pipe-delimited record:
@@ -150,11 +157,13 @@ RuleType|P1|P2|P3|P4|P5
 - `P1` through `P5` — five general-purpose parameters whose meaning is
   rule-type-specific
 - There is no separate threshold field — threshold is encoded as one of the
-  parameters (P2 for SENDERDELETE)
+  parameters (P2 for SENDERDELETE; unused for SENDERIMMEDIATE)
 
 Records are separated by `::`.
 
-### Current Rule Type: SENDERDELETE
+### Current Rule Types
+
+#### SENDERDELETE
 | Field | Role |
 |-------|------|
 | RuleType | `SENDERDELETE` |
@@ -162,16 +171,25 @@ Records are separated by `::`.
 | P2 | Age threshold in days (default 30) |
 | P3–P5 | Reserved for future use |
 
-**Behavior:** Any email in the Inbox from the specified sender that is older
-than P2 days is automatically deleted.
+**Behavior:** Any inbox email from the specified sender that is older than P2
+days is automatically deleted on the next filing action.
+
+#### SENDERIMMEDIATE
+| Field | Role |
+|-------|------|
+| RuleType | `SENDERIMMEDIATE` |
+| P1 | Sender email address |
+| P2–P5 | Reserved for future use |
+
+**Behavior:** Any inbox email from the specified sender is automatically deleted
+on the next filing action, regardless of age.
 
 ### Rule Execution
 The rules scan runs automatically each time an email is filed using the filing
-assistant via `MoveSelectedMessages` in `AssignFolderForm`. It uses Outlook's
-`Items.Restrict` method to pre-filter inbox items before evaluating rules,
-keeping execution efficient regardless of inbox size. The Restrict filter uses
-a broad 1-day cutoff as a pre-filter; the actual per-rule threshold (P2) is
-evaluated inside the loop, allowing different rules to have different thresholds.
+assistant via `MoveSelectedMessages` in `AssignFolderForm`. All inbox items are
+iterated without a pre-filter, allowing rules with no age threshold
+(SENDERIMMEDIATE) to operate correctly alongside age-threshold rules
+(SENDERDELETE). Flagged emails are skipped before rule evaluation.
 
 ### ManageRulesForm
 The rules management interface opens from the "Manage Rules" button on
@@ -197,8 +215,15 @@ between `AssignFolderForm` and `ManageRulesForm` to avoid duplication.
 
 ### SenderHasRule
 A public function that takes a sender email address string and returns `True`
-if any `SENDERDELETE` rule exists for that address. Used by
-`SetManageRulesButtonColor` in `AssignFolderForm`.
+if any `SENDERDELETE` or `SENDERIMMEDIATE` rule exists for that address. Used
+by `SetManageRulesButtonColor` in `AssignFolderForm`.
+
+### MigrateOneDayRules
+A public sub intended to be run once from the VBA Immediate window. Reads
+`RulesStorage` and converts any `SENDERDELETE` record with P2 = "1" to a
+`SENDERIMMEDIATE` record with P2–P5 cleared. Reports the number of rules
+converted via MsgBox. Safe to run multiple times — only records matching the
+exact criteria are affected.
 
 ---
 
@@ -229,6 +254,13 @@ filing action provides a predictable, user-driven trigger that runs regularly
 during normal use without requiring Application_Startup polling or external
 schedulers.
 
+### Why No Pre-filter in RunRules
+The original implementation used an `Items.Restrict` call with a 1-day age
+cutoff as a performance optimization. This was removed to support
+SENDERIMMEDIATE, which must match emails of any age. For typical inbox sizes
+the performance difference is negligible. If inbox size becomes a concern with
+future rule types, a conditional pre-filter strategy could be reintroduced.
+
 ### Why Five Parameters With No Separate Threshold Field
 The five-parameter design is forward-looking. Each rule type encodes its own
 threshold within the parameters (P2 for SENDERDELETE), eliminating hardcoded
@@ -239,8 +271,8 @@ rule type to reflect this.
 ### Why Dynamic Parameter Labels
 Each rule type defines its own label captions for P1–P5 via the
 `SetParameterLabels` dispatcher. Unused parameters for a given rule type display
-as "P3", "P4", "P5" to signal they are reserved rather than relevant. This
-avoids hardcoded UI text and keeps the interface self-documenting.
+as "P2"–"P5" to signal they are reserved rather than relevant. This avoids
+hardcoded UI text and keeps the interface self-documenting.
 
 ### Why Different Field Separators for FolderHistory and RulesStorage
 `FolderHistory` uses `:` as its field separator for historical reasons and works
@@ -300,9 +332,6 @@ To apply changes from GitHub to Outlook:
 - The `CleanSubject` function strips all digits and common prefixes, which works
   well for most academic/professional email but may produce false matches for
   very short subjects.
-- The Restrict pre-filter in `RunRules` uses a 1-day cutoff as a broad filter.
-  If a rule type is added with a threshold of less than 1 day, this will need
-  to be adjusted.
 - The `SetManageRulesButtonColor` feature was partially implemented but not
   fully working at the end of the last development session. The intended
   behavior is for `btnManageRules` on `AssignFolderForm` to turn red when the
