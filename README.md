@@ -11,7 +11,8 @@ via the built-in Developer/VBA interface. It provides two core capabilities:
 2. **Rules Engine** — a framework for defining rules that automatically act on
    inbox emails based on configurable criteria, currently supporting automatic
    deletion of emails from specified senders either after a configurable age
-   threshold or immediately on the next filing action
+   threshold or immediately, and automatic filing of emails from specified senders
+   into a designated folder after a configurable age threshold
 
 The tool is designed for a power user who processes high volumes of email across
 a complex folder structure, and who wants automation that goes beyond what
@@ -126,18 +127,18 @@ filing memory is in-memory only.
 A "Manage Rules" button on `AssignFolderForm` opens the rules management
 interface and closes the filing form. The button turns red (`RGB(180, 0, 0)`)
 with white text when the selected email's sender already has a rule associated
-with it (either SENDERDELETE or SENDERIMMEDIATE), and reverts to system default
-gray when no rule exists. This feature was partially implemented but was not
-fully working at the end of the last session — it should be revisited in a
-fresh session. The relevant functions are `SetManageRulesButtonColor` in
-`AssignFolderForm` and `SenderHasRule` in `Module1`.
+with it (any rule type), and reverts to system default gray when no rule exists.
+This feature was partially implemented but was not fully working at the end of
+the last session — it should be revisited in a fresh session. The relevant
+functions are `SetManageRulesButtonColor` in `AssignFolderForm` and
+`SenderHasRule` in `Module1`.
 
 ---
 
 ## Rules Engine
 
 ### Design Philosophy
-The rules engine is designed to be extensible. Only two rule types are currently
+The rules engine is designed to be extensible. Three rule types are currently
 implemented, but the storage format and dispatch architecture anticipate future
 rule types with different parameters and logic.
 
@@ -146,6 +147,12 @@ Any inbox email with a flag set (`FlagStatus <> olNoFlag`) is automatically
 skipped by the rules engine regardless of which rule would otherwise apply.
 This allows the user to protect specific emails from automated action by
 flagging them.
+
+### Single-Sender Constraint
+Each sender address may be associated with at most one rule. The
+`ManageRulesForm` enforces this on add: if a rule already exists for the entered
+sender address, the add is blocked and the user is informed. The user must
+delete the existing rule before adding a new one for the same sender.
 
 ### Storage Format
 Each rule is stored as a single pipe-delimited record:
@@ -157,7 +164,7 @@ RuleType|P1|P2|P3|P4|P5
 - `P1` through `P5` — five general-purpose parameters whose meaning is
   rule-type-specific
 - There is no separate threshold field — threshold is encoded as one of the
-  parameters (P2 for SENDERDELETE; unused for SENDERIMMEDIATE)
+  parameters (P2 for SENDERDELETE and SENDERFOLDER; unused for SENDERIMMEDIATE)
 
 Records are separated by `::`.
 
@@ -184,12 +191,27 @@ days is automatically deleted on the next filing action.
 **Behavior:** Any inbox email from the specified sender is automatically deleted
 on the next filing action, regardless of age.
 
+#### SENDERFOLDER
+| Field | Role |
+|-------|------|
+| RuleType | `SENDERFOLDER` |
+| P1 | Sender email address |
+| P2 | Age threshold in days (default 30) |
+| P3 | Destination folder EntryID |
+| P4 | Destination folder display path (human-readable, for reference only) |
+| P5 | Reserved for future use |
+
+**Behavior:** Any inbox email from the specified sender that is older than P2
+days is automatically moved to the folder identified by P3 on the next filing
+action. P4 is stored alongside P3 for human readability but is not used during
+rule execution — the folder is resolved exclusively via EntryID.
+
 ### Rule Execution
 The rules scan runs automatically each time an email is filed using the filing
 assistant via `MoveSelectedMessages` in `AssignFolderForm`. All inbox items are
 iterated without a pre-filter, allowing rules with no age threshold
 (SENDERIMMEDIATE) to operate correctly alongside age-threshold rules
-(SENDERDELETE). Flagged emails are skipped before rule evaluation.
+(SENDERDELETE, SENDERFOLDER). Flagged emails are skipped before rule evaluation.
 
 ### ManageRulesForm
 The rules management interface opens from the "Manage Rules" button on
@@ -198,10 +220,16 @@ The rules management interface opens from the "Manage Rules" button on
 - A dropdown to select rule type (extensible as new types are added)
 - Five parameter fields with dynamic labels that update based on the selected
   rule type
+- For SENDERFOLDER, a "Pick Folder" button replaces the P3/P4 text fields,
+  opening the native Outlook folder picker and storing the selected folder's
+  EntryID in P3 and display path in P4
 - Pre-population of parameter fields based on the selected rule type and the
   currently selected email in the inbox
+- Automatic highlighting of the matching rule in the listbox when the form
+  opens, based on the selected email's sender address
 - A list of existing rules showing RuleType, P1, and P2
 - Add and Delete buttons
+- The default rule type on open is SENDERIMMEDIATE
 
 ---
 
@@ -215,8 +243,8 @@ between `AssignFolderForm` and `ManageRulesForm` to avoid duplication.
 
 ### SenderHasRule
 A public function that takes a sender email address string and returns `True`
-if any `SENDERDELETE` or `SENDERIMMEDIATE` rule exists for that address. Used
-by `SetManageRulesButtonColor` in `AssignFolderForm`.
+if any rule of any type exists for that address. Used by
+`SetManageRulesButtonColor` in `AssignFolderForm`.
 
 ### MigrateOneDayRules
 A public sub intended to be run once from the VBA Immediate window. Reads
@@ -263,10 +291,28 @@ future rule types, a conditional pre-filter strategy could be reintroduced.
 
 ### Why Five Parameters With No Separate Threshold Field
 The five-parameter design is forward-looking. Each rule type encodes its own
-threshold within the parameters (P2 for SENDERDELETE), eliminating hardcoded
-values and keeping the storage format uniform. Future rule types may use
-parameters differently — the parameter labels in the UI update dynamically per
-rule type to reflect this.
+threshold within the parameters (P2 for SENDERDELETE and SENDERFOLDER),
+eliminating hardcoded values and keeping the storage format uniform. Future
+rule types may use parameters differently — the parameter labels in the UI
+update dynamically per rule type to reflect this.
+
+### Why SENDERFOLDER Stores Both EntryID and Display Path
+Outlook folder EntryIDs are opaque strings that provide reliable programmatic
+resolution across renames and moves. The display path (P4) is stored alongside
+purely for human readability — in the listbox, in exported storage, and for
+debugging. Rule execution uses only the EntryID.
+
+### Why the Folder Picker Hides txtP3 and txtP4
+For SENDERFOLDER, P3 (EntryID) is an opaque string that cannot be meaningfully
+typed by hand, and P4 is derived automatically from the picker result. Hiding
+both fields and replacing them with a single button avoids presenting the user
+with uneditable or confusing inputs while keeping the underlying storage
+structure consistent with all other rule types.
+
+### Why One Rule Per Sender
+Allowing multiple rules for the same sender would require conflict resolution
+logic (which rule wins?) and complicate the UI. The single-sender constraint
+keeps rule semantics unambiguous: one sender, one action.
 
 ### Why Dynamic Parameter Labels
 Each rule type defines its own label captions for P1–P5 via the
@@ -311,10 +357,13 @@ To apply changes from GitHub to Outlook:
    parameter
 3. Add a new `Case` to `PopulateParameters` and write a corresponding
    `PopulateForX` sub with pre-population logic
-4. Add a new `Case` to the `Select Case` block in `RunRules` in
+4. If the rule type requires a non-text input (e.g. a folder picker), add the
+   necessary control in the designer, position and show/hide it in
+   `InitializeLayout` and `SetPickFolderVisibility`, and handle its event
+5. Add a new `Case` to the `Select Case` block in `RunRules` in
    `ThisOutlookSession` with the action logic
-5. Update `SenderHasRule` in `Module1` if the new rule type also uses P1
-   as a sender address, or add a new parallel function for the new rule type
+6. Update `SenderHasRule` in `Module1` if the new rule type uses P1 as a
+   sender address
 
 ---
 
@@ -322,7 +371,8 @@ To apply changes from GitHub to Outlook:
 
 - The `|` field separator used in `RulesStorage` will break if any parameter
   value contains a pipe character. Unlikely for email addresses and short
-  strings but worth noting.
+  strings but worth noting. Folder display paths (P4 for SENDERFOLDER) are
+  the most likely candidate to contain unusual characters.
 - The `::` record separator used in both storage items will break if any field
   value contains `::`. Unlikely in practice but relevant for future free-text
   parameters.
@@ -332,6 +382,10 @@ To apply changes from GitHub to Outlook:
 - The `CleanSubject` function strips all digits and common prefixes, which works
   well for most academic/professional email but may produce false matches for
   very short subjects.
+- SENDERFOLDER resolves the destination folder via EntryID. If the folder is
+  deleted or the Outlook profile is migrated, the EntryID will become invalid
+  and the rule will silently fail to move matching emails. No error is currently
+  surfaced to the user in this case.
 - The `SetManageRulesButtonColor` feature was partially implemented but not
   fully working at the end of the last development session. The intended
   behavior is for `btnManageRules` on `AssignFolderForm` to turn red when the
