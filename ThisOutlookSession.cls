@@ -83,63 +83,85 @@ Public Sub RunRules()
     Dim myFolder As Outlook.Folder
     Dim myItems As Outlook.Items
     Dim myItem As Object
-    Dim FilterString As String
     Dim myStorage As StorageItem
     Dim ParseString As String
     Dim TargetArray As Variant
     Dim SplitArray As Variant
     Dim i As Long
-    Dim ThresholdDays As Long
 
-    FilterString = "[ReceivedTime] < '" & Format(Now - 1, "ddddd h:nn AMPM") & "'"
-    
     Set myNameSpace = Application.GetNamespace("MAPI")
     Set myFolder = myNameSpace.GetDefaultFolder(olFolderInbox)
-    Set myItems = myFolder.Items.Restrict(FilterString)
-    
-    Dim Session As Outlook.NameSpace
-    Dim Folder As Outlook.Folder
-    Dim SubFolder As Outlook.Folder
-    
-    Set Session = Application.Session
-    For Each Folder In Session.Folders
-        If Folder.Name = "kyle.brothers@louisville.edu" Then
-            For Each SubFolder In Folder.Folders
-                If SubFolder.Name = "Inbox" Then
-                    Set myStorage = SubFolder.GetStorage("RulesStorage", olIdentifyBySubject)
-                    Exit For
-                End If
-            Next
-            Exit For
-        End If
-    Next
-    
+    Set myItems = myFolder.Items
+
+    Set myStorage = Module1.GetRulesStorage()
     If myStorage Is Nothing Then Exit Sub
     ParseString = myStorage.Body
     If ParseString = "" Then Exit Sub
-    
+
     TargetArray = Split(ParseString, "::")
-    
+
     Dim j As Long
     For j = myItems.Count To 1 Step -1
         Set myItem = myItems.Item(j)
         If myItem.Class = olMail Then
-            For i = LBound(TargetArray) To UBound(TargetArray)
-                If TargetArray(i) <> "" Then
-                    SplitArray = Split(TargetArray(i), "|")
-                    If UBound(SplitArray) >= 5 Then
-                        If SplitArray(0) = "SENDERDELETE" Then
-                            ThresholdDays = CLng(SplitArray(2))
-                            If LCase(myItem.SenderEmailAddress) = LCase(SplitArray(1)) Then
-                                If myItem.ReceivedTime < Now - ThresholdDays Then
-                                    myItem.Delete
-                                    Exit For
-                                End If
-                            End If
+            If myItem.FlagStatus = olNoFlag Then
+                For i = LBound(TargetArray) To UBound(TargetArray)
+                    If TargetArray(i) <> "" Then
+                        SplitArray = Split(TargetArray(i), "|")
+                        If UBound(SplitArray) >= 5 Then
+                            Select Case SplitArray(0)
+                                Case "SENDERDELETE"
+                                    Dim ThresholdDays As Long
+                                    ThresholdDays = CLng(SplitArray(2))
+                                    If LCase(myItem.SenderEmailAddress) = LCase(SplitArray(1)) Then
+                                        If myItem.ReceivedTime < Now - ThresholdDays Then
+                                            myItem.Delete
+                                            Exit For
+                                        End If
+                                    End If
+                                Case "SENDERIMMEDIATE"
+                                    If LCase(myItem.SenderEmailAddress) = LCase(SplitArray(1)) Then
+                                        myItem.Delete
+                                        Exit For
+                                    End If
+                                Case "SENDERFOLDER"
+                                    Dim FolderThresholdDays As Long
+                                    FolderThresholdDays = CLng(SplitArray(2))
+                                    If LCase(myItem.SenderEmailAddress) = LCase(SplitArray(1)) Then
+                                        If myItem.ReceivedTime < Now - FolderThresholdDays Then
+                                            On Error Resume Next
+                                            Dim DestFolder As Outlook.Folder
+                                            Set DestFolder = Application.Session.GetFolderFromID(SplitArray(3))
+                                            On Error GoTo 0
+                                            If Not DestFolder Is Nothing Then
+                                                myItem.Move DestFolder
+                                                Exit For
+                                            End If
+                                        End If
+                                    End If
+                                Case "TOPICIMMEDIATEDELETE"
+                                    If LCase(myItem.SenderEmailAddress) = LCase(SplitArray(1)) Then
+                                        If LCase(myItem.ConversationTopic) = LCase(SplitArray(2)) Then
+                                            myItem.Delete
+                                            Exit For
+                                        End If
+                                    End If
+                                Case "TOPICDELETE"
+                                    Dim TopicThresholdDays As Long
+                                    TopicThresholdDays = CLng(SplitArray(3))
+                                    If LCase(myItem.SenderEmailAddress) = LCase(SplitArray(1)) Then
+                                        If LCase(myItem.ConversationTopic) = LCase(SplitArray(2)) Then
+                                            If myItem.ReceivedTime < Now - TopicThresholdDays Then
+                                                myItem.Delete
+                                                Exit For
+                                            End If
+                                        End If
+                                    End If
+                            End Select
                         End If
                     End If
-                End If
-            Next i
+                Next i
+            End If
         End If
     Next j
 End Sub
