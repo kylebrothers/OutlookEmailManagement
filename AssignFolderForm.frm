@@ -123,7 +123,7 @@ Sub MatchSubjects()
             If Not objItem.Subject = "" Then
                 CurrentSelectedSubject = CleanSubject(objItem.Subject)
                 
-                For Each key In Actions.Keys
+                For Each key In Actions.keys
                     CurrentListSubject = key
                     
                     If CurrentListSubject = CurrentSelectedSubject Then
@@ -281,7 +281,7 @@ Sub SaveColumnToStorage(ByVal StorageSubject As String)
         
         If Not myStorage Is Nothing Then
             myStorage.Body = ""
-            For Each key In Actions.Keys
+            For Each key In Actions.keys
                 If Not TempBody = "" Then
                     TempBody = TempBody + "::"
                 End If
